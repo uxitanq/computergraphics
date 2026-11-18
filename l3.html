@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ЛР3. Базовые растровые алгоритмы</title>
+<style>
+  :root{
+    --bg:#eef2f7; --panel:#fff; --line:#d6dee8; --ink:#1e2a38; --muted:#6b7c90;
+    --accent:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;
+  }
+  .app{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center}
+  .panel{
+    width:340px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px;box-shadow:0 2px 10px rgba(20,40,70,.06);
+    max-height:calc(100vh - 32px);overflow:auto;flex:0 0 auto;
+  }
+  .stage{display:flex;flex-direction:column;gap:12px}
+  canvas{background:#fff;border:1px solid var(--line);border-radius:12px;
+         box-shadow:0 2px 10px rgba(20,40,70,.06);cursor:grab;display:block}
+  canvas:active{cursor:grabbing}
+  h1{font-size:16px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  label.lbl{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600;
+            text-transform:uppercase;letter-spacing:.03em}
+  select,input[type=number]{
+    width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;
+    font:inherit;background:#fbfcfe;color:var(--ink)
+  }
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid2 label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+  .hidden{display:none !important}
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  button{
+    flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+    background:#f7f9fc;color:var(--ink);font:inherit;cursor:pointer;transition:.15s
+  }
+  button:hover{background:#eaf1fb;border-color:#b9cdea}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#1d4fd0}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;font-size:12.5px}
+  .checks label{display:flex;align-items:center;gap:6px;cursor:pointer}
+  .info{margin-top:12px;padding:10px;border-radius:10px;background:#f6f9fe;
+        border:1px solid #e2ebf7;font-size:12.5px;line-height:1.6}
+  .info b{color:#0f2d5c}
+  .muted{color:var(--muted)}
+  .trace{background:#fff;border:1px solid var(--line);border-radius:12px;
+         box-shadow:0 2px 10px rgba(20,40,70,.06);width:800px;max-height:280px;overflow:auto}
+  .trace h2{font-size:13px;margin:0;padding:10px 12px;border-bottom:1px solid var(--line);
+            position:sticky;top:0;background:#fff;z-index:2}
+  table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+  th,td{padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:left;white-space:nowrap}
+  th{background:#f6f9fe;color:#41546b;font-weight:600;position:sticky;top:33px}
+  tr:hover td{background:#f8fbff}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="panel">
+    <h1>Базовые растровые алгоритмы</h1>
+    <div class="sub">Лабораторная работа №3</div>
+
+    <label class="lbl">Алгоритм</label>
+    <select id="algoSel">
+      <option value="step">Пошаговый алгоритм (y = kx + b)</option>
+      <option value="dda">ЦДА (DDA)</option>
+      <option value="bres">Брезенхем — отрезок</option>
+      <option value="circle">Брезенхем — окружность</option>
+    </select>
+
+    <div id="lineRow" class="grid2" style="margin-top:10px">
+      <label>X₀<input id="inX0" type="number" value="-8"></label>
+      <label>Y₀<input id="inY0" type="number" value="-4"></label>
+      <label>X₁<input id="inX1" type="number" value="9"></label>
+      <label>Y₁<input id="inY1" type="number" value="6"></label>
+    </div>
+
+    <div id="circleRow" class="grid2 hidden" style="margin-top:10px">
+      <label>Xc<input id="inCX" type="number" value="0"></label>
+      <label>Yc<input id="inCY" type="number" value="0"></label>
+      <label>R<input id="inR" type="number" value="8" min="0" max="200"></label>
+    </div>
+
+    <div class="btnrow">
+      <button id="btnBuild" class="primary">Построить</button>
+      <button id="btnPlay">Анимация</button>
+    </div>
+    <div class="btnrow">
+      <button id="btnStepOne">Шаг</button>
+      <button id="btnRestart">С начала</button>
+      <button id="btnClear">Очистить</button>
+    </div>
+
+    <label class="lbl">Масштаб: <span id="scaleLbl">30</span> px / ед.</label>
+    <input id="scaleRange" type="range" min="4" max="90" step="1" value="30">
+
+    <label class="lbl">Скорость анимации: <span id="speedLbl">60</span> пикс/с</label>
+    <input id="speedRange" type="range" min="5" max="400" step="5" value="60">
+
+    <label class="lbl">Отображение</label>
+    <div class="checks">
+      <label><input type="checkbox" id="optGrid" checked> сетка</label>
+      <label><input type="checkbox" id="optLabels" checked> подписи</label>
+      <label><input type="checkbox" id="optIdeal" checked> идеальная кривая</label>
+      <label><input type="checkbox" id="optColor"> раскраска по шагам</label>
+    </div>
+
+    <div class="info" id="info">Нажмите «Построить»</div>
+
+    <div class="hint">
+      Колесо мыши — масштаб, перетаскивание холста — сдвиг вида.
+      Пиксель с целочисленными координатами (x, y) — это квадрат
+      [x−0.5, x+0.5] × [y−0.5, y+0.5], т.е. его <b>центр</b> совпадает с узлом сетки.
+    </div>
+  </aside>
+
+  <main class="stage">
+    <canvas id="cv"></canvas>
+    <div class="trace">
+      <h2>Пошаговые вычисления (сопроводительная таблица)</h2>
+      <div id="traceBox"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+const iround = v => Math.floor(v + 0.5);      // классическое округление
+const clamp  = (v,a,b) => v<a?a:(v>b?b:v);
+const fmt    = v => (Math.round(v*1000)/1000).toString();
+
+/* =====================================================================
+   1. ХОЛСТ И СИСТЕМА КООРДИНАТ
+   ===================================================================== */
+const W = 800, H = 560;
+const cv = $('cv'), ctx = cv.getContext('2d');
+const DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+cv.width = W*DPR; cv.height = H*DPR;
+cv.style.width = W+'px'; cv.style.height = H+'px';
+
+// view: scale — пикселей на единицу, (ox, oy) — экранные координаты начала координат
+const view = { scale: 30, ox: W/2, oy: H/2 };
+
+// мир -> экран (ось Y направлена вверх, как принято в математике)
+const sx = x => view.ox + x*view.scale;
+const sy = y => view.oy - y*view.scale;
+
+/* =====================================================================
+   2. РАСТРОВЫЕ АЛГОРИТМЫ
+   Все возвращают массив точек [[x,y], ...] в целочисленных координатах
+   ===================================================================== */
+const A = {
+
+  /* --- 2.1 Пошаговый алгоритм: y = k*x + b, шаг по ведущей оси --- */
+  step(x0,y0,x1,y1){
+    const pts = [];
+    const dx = x1-x0, dy = y1-y0;
+    if (Math.abs(dx) >= Math.abs(dy)) {         // ведущая ось — X
+      const k = dx === 0 ? 0 : dy/dx;
+      const s = dx >= 0 ? 1 : -1;
+      for (let i = 0; i <= Math.abs(dx); i++) {
+        const x = x0 + i*s;
+        pts.push([x, iround(y0 + k*(x - x0))]);
+      }
+    } else {                                     // ведущая ось — Y
+      const k = dy === 0 ? 0 : dx/dy;
+      const s = dy >= 0 ? 1 : -1;
+      for (let i = 0; i <= Math.abs(dy); i++) {
+        const y = y0 + i*s;
+        pts.push([iround(x0 + k*(y - y0)), y]);
+      }
+    }
+    return pts;
+  },
+
+  /* --- 2.2 ЦДА (DDA): накопление вещественных приращений --- */
+  dda(x0,y0,x1,y1){
+    const pts = [];
+    const dx = x1-x0, dy = y1-y0;
+    const steps = Math.max(Math.abs(dx), Math.abs(dy));
+    if (steps === 0) return [[x0,y0]];
+    const xi = dx/steps, yi = dy/steps;
+    let x = x0, y = y0;
+    for (let i = 0; i <= steps; i++) {
+      pts.push([iround(x), iround(y)]);
+      x += xi; y += yi;
+    }
+    return pts;
+  },
+
+  /* --- 2.3 Брезенхем: отрезок (целочисленный) --- */
+  bres(x0,y0,x1,y1){
+    const pts = [];
+    const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+    const sxg = x0 < x1 ? 1 : -1;
+    const syg = y0 < y1 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    for(;;){
+      pts.push([x,y]);
+      if (x === x1 && y === y1) break;
+      const e2 = 2*err;
+      if (e2 > -dy) { err -= dy; x += sxg; }
+      if (e2 <  dx) { err += dx; y += syg; }
+    }
+    return pts;
+  },
+
+  /* --- 2.4 Брезенхем: окружность (8-кратная симметрия) --- */
+  circle(xc,yc,r){
+    const out = [], seen = new Set();
+    const put = (x,y) => {
+      const k = x+','+y;
+      if (!seen.has(k)) { seen.add(k); out.push([x,y]); }
+    };
+    let x = 0, y = r, d = 3 - 2*r;
+    while (x <= y) {
+      put(xc+x, yc+y); put(xc-x, yc+y); put(xc+x, yc-y); put(xc-x, yc-y);
+      put(xc+y, yc+x); put(xc-y, yc+x); put(xc+y, yc-x); put(xc-y, yc-x);
+      if (d < 0) {
+        d = d + 4*x + 6;
+      } else {
+        d = d + 4*(x - y) + 10;
+        y--;
+      }
+      x++;
+    }
+    return out;
+  }
+};
+
+/* =====================================================================
+   3. ТРАССИРОВКИ (таблицы вычислений для отчёта)
+   ===================================================================== */
+function traceStep(x0,y0,x1,y1){
+  const rows = [], dx = x1-x0, dy = y1-y0;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const k = dx === 0 ? 0 : dy/dx, s = dx >= 0 ? 1 : -1;
+    for (let i = 0; i <= Math.abs(dx) && i < 300; i++) {
+      const x = x0 + i*s, yf = y0 + k*(x - x0);
+      rows.push([i, x, yf.toFixed(3), iround(yf)]);
+    }
+    return { headers:['i','x','y = y₀ + k·(x−x₀)','round(y)'], rows };
+  } else {
+    const k = dy === 0 ? 0 : dx/dy, s = dy >= 0 ? 1 : -1;
+    for (let i = 0; i <= Math.abs(dy) && i < 300; i++) {
+      const y = y0 + i*s, xf = x0 + k*(y - y0);
+      rows.push([i, y, xf.toFixed(3), iround(xf)]);
+    }
+    return { headers:['i','y','x = x₀ + k·(y−y₀)','round(x)'], rows };
+  }
+}
+
+function traceDda(x0,y0,x1,y1){
+  const rows = [], dx = x1-x0, dy = y1-y0;
+  const steps = Math.max(Math.abs(dx), Math.abs(dy));
+  if (steps === 0) return { headers:['i','x','y','round(x)','round(y)'], rows:[[0,x0,y0,x0,y0]] };
+  const xi = dx/steps, yi = dy/steps;
+  let x = x0, y = y0;
+  for (let i = 0; i <= steps && i < 300; i++) {
+    rows.push([i, x.toFixed(3), y.toFixed(3), iround(x), iround(y)]);
+    x += xi; y += yi;
+  }
+  return { headers:['i','x (float)','y (float)','round(x)','round(y)'], rows };
+}
+
+function traceBres(x0,y0,x1,y1){
+  const rows = [];
+  const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+  const sxg = x0 < x1 ? 1 : -1, syg = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0, i = 0;
+  for(;;){
+    const e2 = 2*err;
+    let decision;
+    if (x === x1 && y === y1)      decision = 'конец';
+    else if (e2 > -dy && e2 < dx)  decision = 'x+('+sxg+'), y+('+syg+')';
+    else if (e2 > -dy)             decision = 'x+('+sxg+')';
+    else                           decision = 'y+('+syg+')';
+    rows.push([i, x, y, err, e2, decision]);
+    if (x === x1 && y === y1) break;
+    if (e2 > -dy) { err -= dy; x += sxg; }
+    if (e2 <  dx) { err += dx; y += syg; }
+    i++;
+    if (i > 400) break;
+  }
+  return { headers:['i','x','y','err','2·err','решение'], rows };
+}
+
+function traceCircle(xc,yc,r){
+  const rows = [];
+  let x = 0, y = r, d = 3 - 2*r, i = 0;
+  while (x <= y && i < 300) {
+    let note;
+    if (d < 0) {
+      note = 'd<0 → d += 4x+6 = ' + (d + 4*x + 6);
+      d = d + 4*x + 6;
+    } else {
+      note = 'd≥0 → d += 4(x−y)+10 = ' + (d + 4*(x-y) + 10) + ', y--';
+      d = d + 4*(x-y) + 10;
+      y--;
+    }
+    rows.push([i, x, y + (d < 0 ? 0 : 1), note]); // y уже мог измениться
+    x++; i++;
+  }
+  return { headers:['i','x','y','решение'], rows };
+}
+
+/* =====================================================================
+   4. ЗАМЕР ВРЕМЕНИ
+   ===================================================================== */
+function measure(fn, nPoints){
+  const reps = clamp(Math.round(3e6 / (nPoints + 20)), 20, 20000);
+  for (let i = 0; i < Math.min(reps, 100); i++) fn();   // прогрев JIT
+  const t0 = performance.now();
+  for (let i = 0; i < reps; i++) fn();
+  const t1 = performance.now();
+  const total = t1 - t0;
+  return { reps, total, avg: total / reps };            // avg в миллисекундах
+}
+
+/* =====================================================================
+   5. СОСТОЯНИЕ И ОТРИСОВКА
+   ===================================================================== */
+const state = {
+  algo:'step', points:[], step:0, playing:false,
+  timing:null, params:null, acc:0, last:0, speed:60
+};
+
+function niceStep(minPx){
+  const cands = [1,2,5,10,20,25,50,100,200,500,1000];
+  for (const c of cands) if (c * view.scale >= minPx) return c;
+  return 2000;
+}
+
+function drawGrid(){
+  if (!$('optGrid').checked) return;
+  const g = niceStep(48);
+  const i0 = Math.floor(-view.ox / view.scale / g) - 1;
+  const i1 = Math.ceil((W - view.ox) / view.scale / g) + 1;
+  ctx.lineWidth = 1;
+  for (let i = i0; i <= i1; i++){
+    const v = i*g, px = Math.round(sx(v)) + 0.5;
+    ctx.strokeStyle = (v % (g*5) === 0) ? '#dbe5f1' : '#eef3f9';
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  }
+  const j0 = Math.floor((view.oy - H) / view.scale / g) - 1;
+  const j1 = Math.ceil(view.oy / view.scale / g) + 1;
+  for (let j = j0; j <= j1; j++){
+    const v = j*g, py = Math.round(sy(v)) + 0.5;
+    ctx.strokeStyle = (v % (g*5) === 0) ? '#dbe5f1' : '#eef3f9';
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+  }
+}
+
+function drawAxes(){
+  const g = niceStep(48);
+  const ay = clamp(view.oy, 0, H);      // экранная Y оси OX
+  const ax = clamp(view.ox, 0, W);      // экранная X оси OY
+
+  ctx.strokeStyle = '#2b3a4a'; ctx.fillStyle = '#2b3a4a'; ctx.lineWidth = 1.6;
+
+  // ось X
+  ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W-2, ay); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W-2, ay); ctx.lineTo(W-12, ay-5); ctx.lineTo(W-12, ay+5);
+  ctx.closePath(); ctx.fill();
+
+  // ось Y
+  ctx.beginPath(); ctx.moveTo(ax, H); ctx.lineTo(ax, 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax, 2); ctx.lineTo(ax-5, 12); ctx.lineTo(ax+5, 12);
+  ctx.closePath(); ctx.fill();
+
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillStyle = '#2b3a4a';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText('X', W-6, ay-6);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillText('Y', ax+8, 4);
+
+  if (!$('optLabels').checked) return;
+  ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = '#5b6b7d';
+
+  // подписи по X
+  const below = ay < H-18;
+  ctx.textAlign = 'center'; ctx.textBaseline = below ? 'top' : 'bottom';
+  const i0 = Math.floor(-view.ox / view.scale / g) - 1;
+  const i1 = Math.ceil((W - view.ox) / view.scale / g) + 1;
+  for (let i = i0; i <= i1; i++){
+    const v = i*g; if (v === 0) continue;
+    const px = sx(v); if (px < 22 || px > W-22) continue;
+    ctx.strokeStyle = '#2b3a4a';
+    ctx.beginPath(); ctx.moveTo(px, ay-3); ctx.lineTo(px, ay+3); ctx.stroke();
+    ctx.fillText(String(v), px, below ? ay+5 : ay-5);
+  }
+
+  // подписи по Y
+  const left = ax > 34;
+  ctx.textAlign = left ? 'right' : 'left'; ctx.textBaseline = 'middle';
+  const j0 = Math.floor((view.oy - H) / view.scale / g) - 1;
+  const j1 = Math.ceil(view.oy / view.scale / g) + 1;
+  for (let j = j0; j <= j1; j++){
+    const v = j*g; if (v === 0) continue;
+    const py = sy(v); if (py < 14 || py > H-14) continue;
+    ctx.strokeStyle = '#2b3a4a';
+    ctx.beginPath(); ctx.moveTo(ax-3, py); ctx.lineTo(ax+3, py); ctx.stroke();
+    ctx.fillText(String(v), left ? ax-6 : ax+6, py);
+  }
+
+  // ноль
+  ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  ctx.fillText('0', ax-5, ay+4);
+}
+
+function drawIdeal(){
+  if (!$('optIdeal').checked || !state.params) return;
+  const p = state.params;
+  ctx.save();
+  ctx.setLineDash([7,6]);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (state.algo === 'circle'){
+    ctx.arc(sx(p.cx), sy(p.cy), Math.max(0.5, p.r*view.scale), 0, Math.PI*2);
+  } else {
+    ctx.moveTo(sx(p.x0), sy(p.y0));
+    ctx.lineTo(sx(p.x1), sy(p.y1));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function pixelColor(i, n){
+  if (!$('optColor').checked) return '#2563eb';
+  const t = n <= 1 ? 0 : i/(n-1);
+  const h = 200 + 130*t;
+  return 'hsl(' + h.toFixed(0) + ',85%,52%)';
+}
+
+function drawPoints(){
+  const pts = state.points, n = pts.length;
+  const shown = Math.min(state.step, n);
+  const s = view.scale;
+
+  for (let i = 0; i < shown; i++){
+    const [x,y] = pts[i];
+    const px = sx(x - 0.5), py = sy(y + 0.5);   // левый верхний угол квадрата
+    if (px > W || py > H || px + s < 0 || py + s < 0) continue;
+    ctx.fillStyle = pixelColor(i, n);
+    ctx.fillRect(px, py, s, s);
+    if (s >= 8){
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px+0.5, py+0.5, s-1, s-1);
+    }
+  }
+
+  // подсветка «текущего» пикселя при анимации
+  if (shown > 0 && shown < n){
+    const [x,y] = pts[shown-1];
+    const px = sx(x-0.5), py = sy(y+0.5);
+    ctx.strokeStyle = '#e11d48';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px+1, py+1, s-2, s-2);
+  }
+}
+
+function marker(x, y, color){
+  ctx.beginPath();
+  ctx.arc(sx(x), sy(y), Math.max(4, view.scale*0.22), 0, Math.PI*2);
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function drawMarkers(){
+  const p = state.params; if (!p) return;
+  if (state.algo === 'circle'){
+    marker(p.cx, p.cy, '#16a34a');
+  } else {
+    marker(p.x0, p.y0, '#16a34a');
+    marker(p.x1, p.y1, '#dc2626');
+  }
+}
+
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,W,H);
+  drawGrid();
+  drawAxes();
+  drawIdeal();
+  drawPoints();
+  drawMarkers();
+}
+
+/* =====================================================================
+   6. ИНТЕРФЕЙС И ЛОГИКА
+   ===================================================================== */
+const intv = id => { const v = parseInt($(id).value, 10); return isFinite(v) ? v : 0; };
+
+function readParams(){
+  if (state.algo === 'circle'){
+    return { cx: intv('inCX'), cy: intv('inCY'),
+             r: clamp(intv('inR'), 0, 300) };
+  }
+  return { x0: intv('inX0'), y0: intv('inY0'),
+           x1: intv('inX1'), y1: intv('inY1') };
+}
+
+function renderTrace(tr){
+  const box = $('traceBox');
+  if (!tr){ box.innerHTML = ''; return; }
+  let html = '<table><thead><tr>' +
+             tr.headers.map(h => '<th>'+h+'</th>').join('') +
+             '</tr></thead><tbody>';
+  for (const r of tr.rows)
+    html += '<tr>' + r.map(c => '<td>'+c+'</td>').join('') + '</tr>';
+  html += '</tbody></table>';
+  if (tr.rows.length >= 300)
+    html += '<div class="hint" style="padding:8px 12px">Показаны первые 300 строк.</div>';
+  box.innerHTML = html;
+}
+
+function updateInfo(){
+  const n = state.points.length, t = state.timing;
+  let html = '<div><b>Пикселей:</b> ' + n + '</div>';
+  if (t){
+    html += '<div><b>Среднее время:</b> ' + fmt(t.avg*1000) +
+            ' мкс <span class="muted">(' + t.reps + ' прогонов, суммарно ' +
+            fmt(t.total) + ' мс)</span></div>';
+    html += '<div><b>На один пиксель:</b> ' +
+            fmt(t.avg*1e6 / Math.max(1,n)) + ' нс</div>';
+  }
+  html += '<div><b>Показано:</b> ' + Math.min(state.step,n) + ' / ' + n + '</div>';
+  $('info').innerHTML = html;
+}
+
+function build(animate){
+  state.algo = $('algoSel').value;
+  const p = readParams();
+  state.params = p;
+
+  let fn, trace;
+  if (state.algo === 'circle'){
+    fn = () => A.circle(p.cx, p.cy, p.r);
+    trace = traceCircle(p.cx, p.cy, p.r);
+  } else if (state.algo === 'step'){
+    fn = () => A.step(p.x0, p.y0, p.x1, p.y1);
+    trace = traceStep(p.x0, p.y0, p.x1, p.y1);
+  } else if (state.algo === 'dda'){
+    fn = () => A.dda(p.x0, p.y0, p.x1, p.y1);
+    trace = traceDda(p.x0, p.y0, p.x1, p.y1);
+  } else {
+    fn = () => A.bres(p.x0, p.y0, p.x1, p.y1);
+    trace = traceBres(p.x0, p.y0, p.x1, p.y1);
+  }
+
+  state.points = fn();
+  state.timing = measure(fn, state.points.length);
+  renderTrace(trace);
+
+  if (animate){
+    state.step = 0; state.acc = 0; state.last = 0;
+    state.playing = true;
+    $('btnPlay').textContent = 'Пауза';
+  } else {
+    state.step = state.points.length;
+    state.playing = false;
+    $('btnPlay').textContent = 'Анимация';
+  }
+  render(); updateInfo();
+}
+
+/* ---------- цикл анимации ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  if (!state.playing) { state.last = 0; return; }
+  if (!state.last) state.last = ts;
+  const dt = Math.min(200, ts - state.last);
+  state.last = ts;
+  state.acc += dt;
+  const interval = 1000 / state.speed;
+  let changed = false;
+  while (state.acc >= interval && state.step < state.points.length){
+    state.step++; state.acc -= interval; changed = true;
+  }
+  if (state.step >= state.points.length){
+    state.playing = false;
+    $('btnPlay').textContent = 'Анимация';
+  }
+  if (changed){ render(); updateInfo(); }
+}
+requestAnimationFrame(loop);
+
+/* ---------- обработчики ---------- */
+$('algoSel').addEventListener('change', () => {
+  state.algo = $('algoSel').value;
+  const isCircle = state.algo === 'circle';
+  $('lineRow').classList.toggle('hidden', isCircle);
+  $('circleRow').classList.toggle('hidden', !isCircle);
+  build(false);
+});
+
+$('btnBuild').addEventListener('click', () => build(false));
+
+$('btnPlay').addEventListener('click', () => {
+  if (!state.points.length) build(true);
+  if (state.playing){
+    state.playing = false;
+    $('btnPlay').textContent = 'Анимация';
+  } else {
+    if (state.step >= state.points.length) state.step = 0;
+    state.acc = 0; state.last = 0;
+    state.playing = true;
+    $('btnPlay').textContent = 'Пауза';
+  }
+});
+
+$('btnStepOne').addEventListener('click', () => {
+  state.playing = false;
+  $('btnPlay').textContent = 'Анимация';
+  if (state.step < state.points.length) state.step++;
+  render(); updateInfo();
+});
+
+$('btnRestart').addEventListener('click', () => {
+  state.step = 0; state.acc = 0; state.last = 0;
+  render(); updateInfo();
+});
+
+$('btnClear').addEventListener('click', () => {
+  state.playing = false; state.points = []; state.step = 0;
+  state.timing = null; state.params = null;
+  $('btnPlay').textContent = 'Анимация';
+  renderTrace(null);
+  $('info').textContent = 'Нажмите «Построить»';
+  render();
+});
+
+$('scaleRange').addEventListener('input', e => {
+  const ns = +e.target.value;
+  // сохраняем центр холста на месте
+  const cxw = (W/2 - view.ox)/view.scale;
+  const cyw = (view.oy - H/2)/view.scale;
+  view.scale = ns;
+  view.ox = W/2 - cxw*ns;
+  view.oy = H/2 + cyw*ns;
+  $('scaleLbl').textContent = ns;
+  render();
+});
+
+$('speedRange').addEventListener('input', e => {
+  state.speed = +e.target.value;
+  $('speedLbl').textContent = state.speed;
+});
+
+['optGrid','optLabels','optIdeal','optColor'].forEach(id =>
+  $(id).addEventListener('change', render));
+
+/* ---------- мышь: панорама и зум ---------- */
+let drag = null;
+cv.addEventListener('mousedown', e => {
+  drag = { mx:e.clientX, my:e.clientY, ox:view.ox, oy:view.oy };
+});
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  view.ox = drag.ox + (e.clientX - drag.mx);
+  view.oy = drag.oy + (e.clientY - drag.my);
+  render();
+});
+window.addEventListener('mouseup', () => drag = null);
+
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const wx = (mx - view.ox)/view.scale;
+  const wy = (view.oy - my)/view.scale;
+  const f = e.deltaY < 0 ? 1.15 : 1/1.15;
+  view.scale = clamp(view.scale*f, 4, 90);
+  view.ox = mx - wx*view.scale;
+  view.oy = my + wy*view.scale;
+  $('scaleRange').value = Math.round(view.scale);
+  $('scaleLbl').textContent = Math.round(view.scale);
+  render();
+}, { passive:false });
+
+/* ---------- старт ---------- */
+build(false);
+})();
+</script>
+</body>
+</html>

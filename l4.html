@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ЛР4. Отсечение отрезков и многоугольников — вариант 7</title>
+<style>
+  :root{--bg:#eef2f7;--panel:#fff;--line:#d6dee8;--ink:#1e2a38;--muted:#6b7c90;--accent:#2563eb}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px}
+  .app{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center}
+  .panel{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+         padding:14px;box-shadow:0 2px 10px rgba(20,40,70,.06);
+         max-height:calc(100vh - 32px);overflow:auto;flex:0 0 auto}
+  .stage{display:flex;flex-direction:column;gap:12px}
+  canvas{background:#fff;border:1px solid var(--line);border-radius:12px;
+         box-shadow:0 2px 10px rgba(20,40,70,.06);cursor:grab;display:block}
+  canvas:active{cursor:grabbing}
+  h1{font-size:16px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  label.lbl{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600;
+            text-transform:uppercase;letter-spacing:.03em}
+  select,textarea,input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--line);
+         border-radius:8px;font:inherit;background:#fbfcfe;color:var(--ink)}
+  textarea{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;resize:vertical}
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  button{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+         background:#f7f9fc;color:var(--ink);font:inherit;cursor:pointer;transition:.15s}
+  button:hover{background:#eaf1fb;border-color:#b9cdea}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#1d4fd0}
+  button.on{background:#dcfce7;border-color:#86efac}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;font-size:12.5px}
+  .checks label{display:flex;align-items:center;gap:6px;cursor:pointer}
+  .info{margin-top:12px;padding:10px;border-radius:10px;background:#f6f9fe;
+        border:1px solid #e2ebf7;font-size:12.5px;line-height:1.6}
+  .info b{color:#0f2d5c}
+  .muted{color:var(--muted)}
+  .trace{background:#fff;border:1px solid var(--line);border-radius:12px;
+         box-shadow:0 2px 10px rgba(20,40,70,.06);width:860px;max-height:300px;overflow:auto}
+  .trace h2{font-size:13px;margin:0;padding:10px 12px;border-bottom:1px solid var(--line);
+            position:sticky;top:0;background:#fff;z-index:2}
+  table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+  th,td{padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:left;white-space:nowrap}
+  th{background:#f6f9fe;color:#41546b;font-weight:600;position:sticky;top:33px}
+  tr:hover td{background:#f8fbff}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>Отсечение отрезков и многоугольников</h1>
+    <div class="sub">ЛР №4 · вариант 7 · Сазерленд–Коэн + Sutherland–Hodgman</div>
+
+    <label class="lbl">Режим</label>
+    <select id="modeSel">
+      <option value="seg">Отрезки — Сазерленд–Коэн</option>
+      <option value="poly">Многоугольник — Sutherland–Hodgman</option>
+    </select>
+
+    <label class="lbl">Входные данные</label>
+    <textarea id="input" rows="11" spellcheck="false"></textarea>
+
+    <div class="btnrow">
+      <button id="btnLoad" class="primary">Загрузить</button>
+      <button id="btnExample">Пример</button>
+    </div>
+    <div class="btnrow">
+      <button id="btnClip">Отсечь</button>
+      <button id="btnStep">Шаг</button>
+      <button id="btnAuto">Авто</button>
+    </div>
+    <div class="btnrow">
+      <button id="btnReset">Сброс</button>
+      <button id="btnFile">Файл…</button>
+    </div>
+    <input type="file" id="fileInput" accept=".txt" style="display:none">
+
+    <label class="lbl">Масштаб: <span id="scaleLbl">30</span> px/ед.</label>
+    <input id="scaleRange" type="range" min="4" max="90" step="1" value="30">
+
+    <label class="lbl">Отображение</label>
+    <div class="checks">
+      <label><input type="checkbox" id="optGrid" checked> сетка</label>
+      <label><input type="checkbox" id="optLabels" checked> подписи</label>
+      <label><input type="checkbox" id="optSource" checked> исходные</label>
+      <label><input type="checkbox" id="optFill" checked> заливка</label>
+    </div>
+
+    <div class="info" id="info">Загрузите данные и нажмите «Отсечь»</div>
+
+    <div class="hint">
+      Колесо мыши — масштаб, перетаскивание холста — сдвиг вида.
+      Пиксель/узел сетки соответствует целочисленной координате (x, y).
+    </div>
+  </aside>
+
+  <main class="stage">
+    <canvas id="cv"></canvas>
+    <div class="trace"><h2>Трассировка</h2><div id="traceBox"></div></div>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>v<a?a:(v>b?b:v);
+const fmt = v => (Math.round(v*1000)/1000).toString();
+
+/* ===== ХОЛСТ ===== */
+const W=860, H=560;
+const cv=$('cv'), ctx=cv.getContext('2d');
+const DPR=Math.max(1,Math.min(3,window.devicePixelRatio||1));
+cv.width=W*DPR; cv.height=H*DPR;
+cv.style.width=W+'px'; cv.style.height=H+'px';
+
+const view={scale:30, ox:W/2, oy:H/2};
+const sx = x => view.ox + x*view.scale;
+const sy = y => view.oy - y*view.scale;
+
+/* ===== СОСТОЯНИЕ ===== */
+const state = {
+  mode:'seg',
+  data:null,          // {segs|verts, win}
+  clipped:null,       // результаты отсечения
+  step:0,             // сколько объектов/границ обработано
+  playing:false,
+  timer:null,
+  timing:null
+};
+
+/* =====================================================================
+   ПАРСИНГ ВХОДНЫХ ДАННЫХ
+   Формат из задания:
+     n
+     x1 y1 x2 y2   (n строк)
+     ...
+     Xmin Ymin Xmax Ymax
+   Для многоугольника: n, затем n строк "x y", затем окно.
+   ===================================================================== */
+function parseInput(text, mode){
+  const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length);
+  if(!lines.length) throw new Error('пустой ввод');
+  const n = parseInt(lines[0],10);
+  if(!isFinite(n) || n<0) throw new Error('первая строка должна быть числом n');
+  if(lines.length < n+2) throw new Error('недостаточно строк');
+
+  let obj;
+  if(mode==='seg'){
+    const segs=[];
+    for(let i=1;i<=n;i++){
+      const p = lines[i].split(/\s+/).map(Number);
+      if(p.length<4 || p.some(v=>!isFinite(v))) throw new Error('строка '+(i+1)+' — ожидалось 4 числа');
+      segs.push({x1:p[0],y1:p[1],x2:p[2],y2:p[3]});
+    }
+    obj={segs};
+  } else {
+    const verts=[];
+    for(let i=1;i<=n;i++){
+      const p = lines[i].split(/\s+/).map(Number);
+      if(p.length<2 || p.some(v=>!isFinite(v))) throw new Error('строка '+(i+1)+' — ожидалось 2 числа');
+      verts.push({x:p[0],y:p[1]});
+    }
+    obj={verts};
+  }
+  const w = lines[n+1].split(/\s+/).map(Number);
+  if(w.length<4 || w.some(v=>!isFinite(v))) throw new Error('последняя строка — ожидалось 4 числа (Xmin Ymin Xmax Ymax)');
+  let xmin=w[0], ymin=w[1], xmax=w[2], ymax=w[3];
+  if(xmin>xmax){ const t=xmin; xmin=xmax; xmax=t; }
+  if(ymin>ymax){ const t=ymin; ymin=ymax; ymax=t; }
+  obj.win={xmin,ymin,xmax,ymax};
+  return obj;
+}
+
+/* =====================================================================
+   ЧАСТЬ 1. САЗЕРЛЕНД–КОЭН
+   Коды: INSIDE=0, LEFT=1, RIGHT=2, BOTTOM=4, TOP=8
+   Пересечение ищем по уравнению прямой через две точки:
+     (y - y1) / (y2 - y1) = (x - x1) / (x2 - x1)
+   Отсюда для вертикальной границы x = Xg:
+     y = y1 + (y2-y1) * (Xg-x1)/(x2-x1)
+   и для горизонтальной y = Yg:
+     x = x1 + (x2-x1) * (Yg-y1)/(y2-y1)
+   ===================================================================== */
+const INSIDE=0, LEFT=1, RIGHT=2, BOTTOM=4, TOP=8;
+
+function code(x,y,w){
+  let c=0;
+  if(x<w.xmin) c|=LEFT;
+  if(x>w.xmax) c|=RIGHT;
+  if(y<w.ymin) c|=BOTTOM;
+  if(y>w.ymax) c|=TOP;
+  return c;
+}
+function codeName(c){
+  if(c===0) return '0 (внутри)';
+  const a=[];
+  if(c&LEFT)   a.push('L');
+  if(c&RIGHT)  a.push('R');
+  if(c&BOTTOM) a.push('B');
+  if(c&TOP)    a.push('T');
+  return a.join('|')+' ('+c+')';
+}
+
+function clipCohenSutherland(seg, w){
+  let x1=seg.x1, y1=seg.y1, x2=seg.x2, y2=seg.y2;
+  const steps=[];
+  for(let iter=0; iter<50; iter++){
+    const c1=code(x1,y1,w), c2=code(x2,y2,w);
+    if((c1|c2)===0){
+      steps.push({c1,c2,action:'принять', x1,y1,x2,y2});
+      return {accepted:{x1,y1,x2,y2}, steps};
+    }
+    if((c1&c2)!==0){
+      steps.push({c1,c2,action:'отбросить'});
+      return {accepted:null, steps};
+    }
+    const c = c1 ? c1 : c2;
+    let x, y;
+    if(c & TOP){
+      y = w.ymax;
+      x = x1 + (x2-x1)*(y-y1)/(y2-y1);
+    } else if(c & BOTTOM){
+      y = w.ymin;
+      x = x1 + (x2-x1)*(y-y1)/(y2-y1);
+    } else if(c & RIGHT){
+      x = w.xmax;
+      y = y1 + (y2-y1)*(x-x1)/(x2-x1);
+    } else {
+      x = w.xmin;
+      y = y1 + (y2-y1)*(x-x1)/(x2-x1);
+    }
+    steps.push({c1,c2,action:'пересечение', x,y});
+    if(c===c1){ x1=x; y1=y; } else { x2=x; y2=y; }
+  }
+  return {accepted:{x1,y1,x2,y2}, steps};
+}
+
+/* =====================================================================
+   ЧАСТЬ 2. ОТСЕЧЕНИЕ ВЫПУКЛОГО МНОГОУГОЛЬНИКА (Sutherland–Hodgman)
+   Последовательно отсекаем по 4 границам окна. Для каждой границы
+   обходим все рёбра текущего многоугольника (S→E) и:
+     - если E внутри:
+         если S снаружи — добавляем точку пересечения S-E с границей;
+         добавляем E;
+     - иначе если S внутри:
+         добавляем точку пересечения S-E с границей.
+   ===================================================================== */
+function intersectV(a,b,x){
+  const t=(x-a.x)/(b.x-a.x);
+  return {x, y:a.y + t*(b.y-a.y)};
+}
+function intersectH(a,b,y){
+  const t=(y-a.y)/(b.y-a.y);
+  return {x:a.x + t*(b.x-a.x), y};
+}
+
+function clipPolygon(verts, w){
+  let output = verts.slice();
+  const edges = [
+    {name:'LEFT',   inside:p=>p.x>=w.xmin, inter:(a,b)=>intersectV(a,b,w.xmin)},
+    {name:'RIGHT',  inside:p=>p.x<=w.xmax, inter:(a,b)=>intersectV(a,b,w.xmax)},
+    {name:'BOTTOM', inside:p=>p.y>=w.ymin, inter:(a,b)=>intersectH(a,b,w.ymin)},
+    {name:'TOP',    inside:p=>p.y<=w.ymax, inter:(a,b)=>intersectH(a,b,w.ymax)}
+  ];
+  const steps=[];
+  for(const e of edges){
+    const input = output;
+    output = [];
+    for(let i=0;i<input.length;i++){
+      const S = input[i];
+      const E = input[(i+1)%input.length];
+      const sIn = e.inside(S), eIn = e.inside(E);
+      if(eIn){
+        if(!sIn) output.push(e.inter(S,E));
+        output.push({x:E.x, y:E.y});
+      } else if(sIn){
+        output.push(e.inter(S,E));
+      }
+    }
+    steps.push({edge:e.name, out:output.slice()});
+    if(output.length===0) break;
+  }
+  return {result:output, steps};
+}
+
+/* =====================================================================
+   ВРЕМЯ
+   ===================================================================== */
+function measureTime(){
+  if(!state.data) return;
+  const t0=performance.now();
+  let reps=0;
+  do{
+    if(state.mode==='seg'){
+      for(const s of state.data.segs) clipCohenSutherland(s, state.data.win);
+    } else {
+      clipPolygon(state.data.verts, state.data.win);
+    }
+    reps++;
+  } while(performance.now()-t0 < 50 && reps < 20000);
+  const total = performance.now()-t0;
+  state.timing = {reps, total, avg: total/reps};
+}
+
+/* =====================================================================
+   ЗАГРУЗКА / ОТСЕЧЕНИЕ / АНИМАЦИЯ
+   ===================================================================== */
+function fitView(){
+  const d = state.data; if(!d) return;
+  let xs=[], ys=[];
+  if(state.mode==='seg'){
+    d.segs.forEach(s=>{xs.push(s.x1,s.x2); ys.push(s.y1,s.y2);});
+  } else {
+    d.verts.forEach(v=>{xs.push(v.x); ys.push(v.y);});
+  }
+  xs.push(d.win.xmin,d.win.xmax); ys.push(d.win.ymin,d.win.ymax);
+  const minx=Math.min(...xs), maxx=Math.max(...xs);
+  const miny=Math.min(...ys), maxy=Math.max(...ys);
+  const w=Math.max(maxx-minx,1), h=Math.max(maxy-miny,1);
+  const s=Math.min((W-100)/w, (H-100)/h);
+  view.scale = clamp(s,4,90);
+  view.ox = W/2 - (minx+maxx)/2*view.scale;
+  view.oy = H/2 + (miny+maxy)/2*view.scale;
+  $('scaleRange').value = Math.round(view.scale);
+  $('scaleLbl').textContent = Math.round(view.scale);
+}
+
+function load(){
+  state.mode = $('modeSel').value;
+  try {
+    state.data = parseInput($('input').value, state.mode);
+  } catch(e){
+    alert('Ошибка разбора: '+e.message);
+    return;
+  }
+  fitView();
+  reset();
+}
+
+function reset(){
+  state.step = 0;
+  state.clipped = null;
+  state.timing = null;
+  stopAuto();
+  renderTrace(); updateInfo(); render();
+}
+
+function doClipAll(){
+  if(!state.data) return;
+  if(state.mode==='seg'){
+    state.clipped = state.data.segs.map(s=>clipCohenSutherland(s, state.data.win));
+    state.step = state.data.segs.length;
+  } else {
+    state.clipped = clipPolygon(state.data.verts, state.data.win);
+    state.step = state.clipped.steps.length;
+  }
+  measureTime();
+  stopAuto();
+  renderTrace(); updateInfo(); render();
+}
+
+function stepOnce(){
+  if(!state.data) return;
+  if(state.mode==='seg'){
+    if(!state.clipped) state.clipped = state.data.segs.map(s=>clipCohenSutherland(s, state.data.win));
+    if(state.step < state.data.segs.length) state.step++;
+  } else {
+    if(!state.clipped) state.clipped = clipPolygon(state.data.verts, state.data.win);
+    if(state.step < state.clipped.steps.length) state.step++;
+  }
+  renderTrace(); updateInfo(); render();
+}
+
+function stopAuto(){
+  state.playing=false;
+  if(state.timer){ clearInterval(state.timer); state.timer=null; }
+  $('btnAuto').textContent='Авто';
+}
+
+function startAuto(){
+  if(!state.data) return;
+  if(state.playing){ stopAuto(); return; }
+  state.playing=true;
+  $('btnAuto').textContent='Стоп';
+  state.timer = setInterval(()=>{
+    const max = state.mode==='seg'
+      ? state.data.segs.length
+      : (state.clipped ? state.clipped.steps.length : 0);
+    if(state.step >= max){ stopAuto(); return; }
+    stepOnce();
+  }, 600);
+}
+
+/* =====================================================================
+   ОТРИСОВКА
+   ===================================================================== */
+function niceStep(minPx){
+  const c=[1,2,5,10,20,25,50,100,200,500,1000];
+  for(const v of c) if(v*view.scale>=minPx) return v;
+  return 2000;
+}
+function drawGrid(){
+  if(!$('optGrid').checked) return;
+  const g=niceStep(48);
+  const i0=Math.floor(-view.ox/view.scale/g)-1;
+  const i1=Math.ceil((W-view.ox)/view.scale/g)+1;
+  for(let i=i0;i<=i1;i++){
+    const v=i*g, px=Math.round(sx(v))+0.5;
+    ctx.strokeStyle = (v%(g*5)===0)?'#dbe5f1':'#eef3f9';
+    ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,H); ctx.stroke();
+  }
+  const j0=Math.floor((view.oy-H)/view.scale/g)-1;
+  const j1=Math.ceil(view.oy/view.scale/g)+1;
+  for(let j=j0;j<=j1;j++){
+    const v=j*g, py=Math.round(sy(v))+0.5;
+    ctx.strokeStyle = (v%(g*5)===0)?'#dbe5f1':'#eef3f9';
+    ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
+  }
+}
+function drawAxes(){
+  const g=niceStep(48);
+  const ay=clamp(view.oy,0,H), ax=clamp(view.ox,0,W);
+  ctx.strokeStyle='#2b3a4a'; ctx.fillStyle='#2b3a4a'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(0,ay); ctx.lineTo(W-2,ay); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W-2,ay); ctx.lineTo(W-12,ay-5); ctx.lineTo(W-12,ay+5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(ax,H); ctx.lineTo(ax,2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax,2); ctx.lineTo(ax-5,12); ctx.lineTo(ax+5,12); ctx.closePath(); ctx.fill();
+  ctx.font='13px system-ui,sans-serif'; ctx.fillStyle='#2b3a4a';
+  ctx.textAlign='right'; ctx.textBaseline='bottom'; ctx.fillText('X',W-6,ay-6);
+  ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText('Y',ax+8,4);
+  if(!$('optLabels').checked) return;
+  ctx.font='11px system-ui,sans-serif'; ctx.fillStyle='#5b6b7d';
+  const below = ay<H-18;
+  ctx.textAlign='center'; ctx.textBaseline = below?'top':'bottom';
+  const i0=Math.floor(-view.ox/view.scale/g)-1;
+  const i1=Math.ceil((W-view.ox)/view.scale/g)+1;
+  for(let i=i0;i<=i1;i++){
+    const v=i*g; if(v===0) continue;
+    const px=sx(v); if(px<22||px>W-22) continue;
+    ctx.strokeStyle='#2b3a4a';
+    ctx.beginPath(); ctx.moveTo(px,ay-3); ctx.lineTo(px,ay+3); ctx.stroke();
+    ctx.fillText(String(v),px, below?ay+5:ay-5);
+  }
+  const left = ax>34;
+  ctx.textAlign = left?'right':'left'; ctx.textBaseline='middle';
+  const j0=Math.floor((view.oy-H)/view.scale/g)-1;
+  const j1=Math.ceil(view.oy/view.scale/g)+1;
+  for(let j=j0;j<=j1;j++){
+    const v=j*g; if(v===0) continue;
+    const py=sy(v); if(py<14||py>H-14) continue;
+    ctx.strokeStyle='#2b3a4a';
+    ctx.beginPath(); ctx.moveTo(ax-3,py); ctx.lineTo(ax+3,py); ctx.stroke();
+    ctx.fillText(String(v), left?ax-6:ax+6, py);
+  }
+  ctx.textAlign='right'; ctx.textBaseline='top'; ctx.fillText('0',ax-5,ay+4);
+}
+
+function drawWindow(){
+  const w = state.data.win;
+  const x1=sx(w.xmin), y1=sy(w.ymax);
+  const x2=sx(w.xmax), y2=sy(w.ymin);
+  ctx.fillStyle='rgba(37,99,235,.07)';
+  ctx.fillRect(x1,y1,x2-x1,y2-y1);
+  ctx.strokeStyle='#2563eb'; ctx.lineWidth=2;
+  ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+  if($('optLabels').checked){
+    ctx.font='11px system-ui,sans-serif'; ctx.fillStyle='#1d4fd0';
+    ctx.textAlign='left'; ctx.textBaseline='bottom';
+    ctx.fillText('Xmin='+w.xmin, x1, y1-2);
+    ctx.fillText('Ymax='+w.ymax, x1+4, y1+10);
+    ctx.textAlign='right'; ctx.textBaseline='top';
+    ctx.fillText('Xmax='+w.xmax, x2, y2+2);
+    ctx.textAlign='left';
+    ctx.fillText('Ymin='+w.ymin, x1+4, y2-12);
+  }
+}
+
+function drawSourceSegments(){
+  if(!$('optSource').checked || !state.data) return;
+  ctx.save();
+  ctx.strokeStyle='#b8c4d2'; ctx.lineWidth=1.4;
+  ctx.setLineDash([5,4]);
+  for(const s of state.data.segs){
+    ctx.beginPath();
+    ctx.moveTo(sx(s.x1),sy(s.y1));
+    ctx.lineTo(sx(s.x2),sy(s.y2));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawVisibleSegments(){
+  if(!state.data) return;
+  const res = state.clipped || [];
+  const upto = Math.min(state.step, res.length);
+  ctx.save();
+  ctx.strokeStyle='#16a34a'; ctx.lineWidth=2.4; ctx.setLineDash([]);
+  for(let i=0;i<upto;i++){
+    const r = res[i];
+    if(!r || !r.accepted) continue;
+    const a=r.accepted;
+    ctx.beginPath();
+    ctx.moveTo(sx(a.x1),sy(a.y1));
+    ctx.lineTo(sx(a.x2),sy(a.y2));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSourcePolygon(){
+  if(!$('optSource').checked || !state.data || !state.data.verts) return;
+  const v = state.data.verts;
+  if(v.length<2) return;
+  ctx.save();
+  ctx.strokeStyle='#b8c4d2'; ctx.lineWidth=1.4; ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  ctx.moveTo(sx(v[0].x),sy(v[0].y));
+  for(let i=1;i<v.length;i++) ctx.lineTo(sx(v[i].x),sy(v[i].y));
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+
+function getPolygonAt(k){
+  const d=state.data;
+  if(!d || !d.verts) return [];
+  if(k<=0) return d.verts;
+  const steps = state.clipped ? state.clipped.steps : [];
+  if(!steps.length) return d.verts;
+  const idx = Math.min(k, steps.length)-1;
+  return steps[idx].out;
+}
+
+function drawClippedPolygon(){
+  const k = state.clipped ? state.step : 0;
+  if(k<=0) return;
+  const v = getPolygonAt(k);
+  if(v.length<2) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(sx(v[0].x),sy(v[0].y));
+  for(let i=1;i<v.length;i++) ctx.lineTo(sx(v[i].x),sy(v[i].y));
+  ctx.closePath();
+  if($('optFill').checked){
+    ctx.fillStyle='rgba(22,163,74,.22)'; ctx.fill();
+  }
+  ctx.strokeStyle='#16a34a'; ctx.lineWidth=2.4;
+  ctx.stroke();
+  // вершины
+  ctx.fillStyle='#15803d';
+  for(const p of v){
+    ctx.beginPath();
+    ctx.arc(sx(p.x),sy(p.y),3,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  drawGrid();
+  drawAxes();
+  if(!state.data) return;
+  drawWindow();
+  if(state.mode==='seg'){
+    drawSourceSegments();
+    drawVisibleSegments();
+  } else {
+    drawSourcePolygon();
+    drawClippedPolygon();
+  }
+}
+
+/* =====================================================================
+   ТРАССИРОВКА
+   ===================================================================== */
+function renderTrace(){
+  const box=$('traceBox');
+  if(!state.data){ box.innerHTML=''; return; }
+  if(state.mode==='seg'){
+    const res = state.clipped || [];
+    if(!res.length){ box.innerHTML='<div class="hint" style="padding:10px">Нажмите «Отсечь» или «Шаг».</div>'; return; }
+    let html='<table><thead><tr><th>№</th><th>шаг</th><th>c₁</th><th>c₂</th><th>действие</th><th>точка / результат</th></tr></thead><tbody>';
+    for(let i=0;i<Math.min(state.step,res.length);i++){
+      const r=res[i]; if(!r) continue;
+      r.steps.forEach((st,k)=>{
+        let pt='—';
+        if(st.action==='пересечение') pt='('+fmt(st.x)+', '+fmt(st.y)+')';
+        else if(st.action==='принять') pt='('+fmt(st.x1)+', '+fmt(st.y1)+') → ('+fmt(st.x2)+', '+fmt(st.y2)+')';
+        html+=`<tr><td>${i+1}</td><td>${k+1}</td><td>${codeName(st.c1)}</td><td>${codeName(st.c2)}</td><td>${st.action}</td><td>${pt}</td></tr>`;
+      });
+    }
+    html+='</tbody></table>';
+    box.innerHTML=html;
+  } else {
+    if(!state.clipped){ box.innerHTML='<div class="hint" style="padding:10px">Нажмите «Отсечь» или «Шаг».</div>'; return; }
+    let html='<table><thead><tr><th>граница</th><th>вершины после отсечения</th></tr></thead><tbody>';
+    state.clipped.steps.slice(0,state.step).forEach(st=>{
+      html+=`<tr><td>${st.edge}</td><td>${st.out.map(p=>'('+fmt(p.x)+', '+fmt(p.y)+')').join(' ')}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    box.innerHTML=html;
+  }
+}
+
+function updateInfo(){
+  if(!state.data){ $('info').textContent='Загрузите данные и нажмите «Отсечь»'; return; }
+  let html='';
+  if(state.mode==='seg'){
+    const n=state.data.segs.length;
+    const res=state.clipped||[];
+    const visible=res.filter(r=>r&&r.accepted).length;
+    html+=`<div><b>Отрезков:</b> ${n}, <b>видимых:</b> ${visible}, <b>отброшено:</b> ${n-visible}</div>`;
+  } else {
+    const n=state.data.verts.length;
+    const out=state.clipped?state.clipped.result:[];
+    html+=`<div><b>Вершин на входе:</b> ${n}, <b>на выходе:</b> ${out.length}</div>`;
+  }
+  const w=state.data.win;
+  html+=`<div><b>Окно:</b> [${w.xmin}, ${w.ymin}] — [${w.xmax}, ${w.ymax}]</div>`;
+  if(state.timing){
+    html+=`<div><b>Время:</b> ${fmt(state.timing.avg)} мс/прогон (${state.timing.reps} прогонов, ${fmt(state.timing.total)} мс суммарно)</div>`;
+  }
+  $('info').innerHTML=html;
+}
+
+/* =====================================================================
+   ПРИМЕРЫ
+   ===================================================================== */
+const EXAMPLES = {
+  seg: `6
+-12 -8 12 8
+-10 10 10 -10
+0 -15 0 15
+-15 0 15 0
+-5 -3 5 3
+3 5 -3 -5
+-6 -4 6 4`,
+  poly: `3
+-12 -8
+12 -8
+0 12
+-6 -4 6 4`
+};
+
+/* =====================================================================
+   ОБРАБОТЧИКИ
+   ===================================================================== */
+function fillExample(){
+  $('input').value = EXAMPLES[$('modeSel').value];
+}
+
+$('modeSel').addEventListener('change', ()=>{
+  fillExample();
+  load();
+});
+$('btnLoad').addEventListener('click', load);
+$('btnExample').addEventListener('click', ()=>{ fillExample(); load(); });
+$('btnClip').addEventListener('click', doClipAll);
+$('btnStep').addEventListener('click', stepOnce);
+$('btnAuto').addEventListener('click', startAuto);
+$('btnReset').addEventListener('click', reset);
+
+$('btnFile').addEventListener('click', ()=>$('fileInput').click());
+$('fileInput').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ $('input').value=r.result; load(); };
+  r.readAsText(f);
+  e.target.value='';
+});
+
+$('scaleRange').addEventListener('input', e=>{
+  const ns=+e.target.value;
+  const cxw=(W/2-view.ox)/view.scale;
+  const cyw=(view.oy-H/2)/view.scale;
+  view.scale=ns;
+  view.ox=W/2-cxw*ns;
+  view.oy=H/2+cyw*ns;
+  $('scaleLbl').textContent=ns;
+  render();
+});
+
+['optGrid','optLabels','optSource','optFill'].forEach(id=>
+  $(id).addEventListener('change', render));
+
+/* мышь */
+let drag=null;
+cv.addEventListener('mousedown', e=>{ drag={mx:e.clientX,my:e.clientY,ox:view.ox,oy:view.oy}; });
+window.addEventListener('mousemove', e=>{
+  if(!drag) return;
+  view.ox=drag.ox+(e.clientX-drag.mx);
+  view.oy=drag.oy+(e.clientY-drag.my);
+  render();
+});
+window.addEventListener('mouseup', ()=>drag=null);
+cv.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const wx=(mx-view.ox)/view.scale;
+  const wy=(view.oy-my)/view.scale;
+  const f=e.deltaY<0?1.15:1/1.15;
+  view.scale=clamp(view.scale*f,4,90);
+  view.ox=mx-wx*view.scale;
+  view.oy=my+wy*view.scale;
+  $('scaleRange').value=Math.round(view.scale);
+  $('scaleLbl').textContent=Math.round(view.scale);
+  render();
+},{passive:false});
+
+/* старт */
+fillExample();
+load();
+})();
+</script>
+</body>
+</html>
